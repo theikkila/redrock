@@ -1,0 +1,13 @@
+[package]
+name = "redrock"
+version = "0.1.0"
+authors = ["Teemu Heikkilä <teemu@emblica.fi>"]
+
+[dependencies]
+rocksdb = "0.11.0"
+bincode = "1.0.1"
+serde = "1.0.84"
+serde_derive = "1.0.84"
+# time = "*"
+byteorder = "1.2.7"
+#uuid = { version = "0.7", features = ["v4"] }
