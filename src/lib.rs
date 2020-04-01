@@ -77,6 +77,10 @@ pub fn set_str(db: &rocksdb::DB, key: &[u8], data: &str) -> std::result::Result<
     db.put(&key, &serialize(&data).unwrap())
 }
 
+pub fn del(db: &rocksdb::DB, key: &[u8]) -> std::result::Result<(), rocksdb::Error> {
+    db.delete(&key)
+}
+
 pub fn get_u64(db: &rocksdb::DB, key: &str) -> u64 {
     match db.get(key.as_bytes()) {
         Ok(Some(data_b)) => {
@@ -189,5 +193,11 @@ pub fn open_db(path: &str) -> rocksdb::DB {
     let mut opts = Options::default();
     opts.create_if_missing(true);
     opts.set_compression_type(DBCompressionType::Lz4);
+    // let transform = SliceTransform::create_fixed_prefix(5);
+    // opts.increase_parallelism(4);
+    // opts.enable_statistics();
+    // opts.set_stats_dump_period_sec(120);
+    // opts.set_prefix_extractor(transform);
+    // opts.set_memtable_prefix_bloom_ratio(0.1);
     DB::open(&opts, path).unwrap()
 }

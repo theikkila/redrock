@@ -1,13 +1,15 @@
 [package]
 name = "redrock"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Teemu Heikkilä <teemu@emblica.fi>"]
+license = "MIT"
+description = "helper lib for rocksdb"
 
 [dependencies]
 rocksdb = "0.11.0"
 bincode = "1.0.1"
 serde = "1.0.84"
 serde_derive = "1.0.84"
-# time = "*"
+time = "*"
 byteorder = "1.2.7"
-#uuid = { version = "0.7", features = ["v4"] }
+uuid = { version = "0.7", features = ["v4"] }
