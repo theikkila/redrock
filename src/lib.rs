@@ -67,22 +67,22 @@ impl fmt::Display for RedrockError {
 // }
 
 
-fn meta_key(tp: &str, key: &str) -> Vec<u8> {
-    format!("meta_{}_{}", tp, key).as_bytes().to_vec()
+fn meta_key(tp: &str, key: &str) -> String {
+    format!("meta_{}_{}", tp, key)//.as_bytes().to_vec()
 }
 
-fn data_key(tp: &str, key: &str) -> Vec<u8> {
-    format!("data_{}_{}", tp, key).as_bytes().to_vec()
+fn data_key(tp: &str, key: &str) -> String {
+    format!("data_{}_{}", tp, key)//.as_bytes().to_vec()
 }
 
-fn l_idx_key(key: &str, idx: u64) -> Vec<u8> {
+fn l_idx_key(key: &str, idx: u64) -> String {
     data_key("l", &format!("{}_{}", key, idx))
 }
-fn z_member_key(key: &str, member: &str) -> Vec<u8> {
+fn z_member_key(key: &str, member: &str) -> String {
     data_key("z", &format!("{}:{}", key, member))
 }
 
-fn z_key(key: &str) -> Vec<u8> {
+fn z_key(key: &str) -> String {
     data_key("z", &format!("{}:", &key))
 }
 
@@ -113,18 +113,18 @@ pub fn llen(db: &rocksdb::DB, key: &str) -> std::result::Result<u64, RedrockErro
     Ok(meta.length)
 }
 
-pub fn get_str(db: &rocksdb::DB, key: &[u8]) -> Option<String> {
+pub fn get_str(db: &rocksdb::DB, key: &str) -> Option<String> {
     match db.get(key) {
         Ok(Some(data_b)) => deserialize(&data_b).ok(),
         _ => None
     }
 }
-pub fn set_str(db: &rocksdb::DB, key: &[u8], data: &str) -> std::result::Result<(), RedrockError> {
-    db.put(&key, &serialize(&data)?).map_err(|e| e.into())
+pub fn set_str(db: &rocksdb::DB, key: &str, data: &str) -> std::result::Result<(), RedrockError> {
+    db.put(&key.as_bytes(), &serialize(&data)?).map_err(|e| e.into())
 }
 
-pub fn del(db: &rocksdb::DB, key: &[u8]) -> std::result::Result<(), RedrockError> {
-    db.delete(&key).map_err(|e| e.into())
+pub fn del(db: &rocksdb::DB, key: &str) -> std::result::Result<(), RedrockError> {
+    db.delete(&key.as_bytes()).map_err(|e| e.into())
 }
 
 pub fn get_u64(db: &rocksdb::DB, key: &str) -> u64 {
@@ -219,13 +219,12 @@ pub fn prefix_search(db: &rocksdb::DB, prefix: &str) -> HashMap<String, i64> {
 
 pub fn smembers(db: &rocksdb::DB, key: &str) -> Vec<String> {
     let zk = z_key(&key);
-    let zk_str = str::from_utf8(&zk).expect("key to be valid utf8 string");
     let mut out: Vec<String> = vec![];
-    let iter = db.iterator(IteratorMode::From(&zk, Direction::Forward)); // From a key in Direction::{forward,reverse}
+    let iter = db.iterator(IteratorMode::From(&zk.as_bytes(), Direction::Forward)); // From a key in Direction::{forward,reverse}
     for (it_key, it_value) in iter {
         match str::from_utf8(&it_key) {
             Ok(k) => {
-                if !k.starts_with(&zk_str) { break; }
+                if !k.starts_with(&zk) { break; }
                 deserialize(&it_value).map(|s| out.push(s)).expect("inserting to vector");
             },
             _ => { break; }
