@@ -1,6 +1,6 @@
 [package]
 name = "redrock"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Teemu Heikkilä <teemu@emblica.fi>"]
 license = "MIT"
 description = "helper lib for rocksdb"
