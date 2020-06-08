@@ -13,10 +13,11 @@ use bincode::{serialize, deserialize};
 use byteorder::{BigEndian, ReadBytesExt}; // 1.2.7
 
 
-// extern crate time;
+use std::error;
+use std::fmt;
 use std::str;
 use std::mem::transmute;
-// use time::PreciseTime;
+
 
 use rocksdb::{DB, Options, Direction, IteratorMode, DBCompressionType, WriteBatch};
 
@@ -24,6 +25,46 @@ use rocksdb::{DB, Options, Direction, IteratorMode, DBCompressionType, WriteBatc
 struct ListMeta {
     length: u64
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RedrockError {
+    message: String,
+}
+
+impl From<RedrockError> for String {
+    fn from(e: RedrockError) -> String {
+        e.message
+    }
+}
+
+impl From<rocksdb::Error> for RedrockError {
+    fn from(e: rocksdb::Error) -> RedrockError {
+        RedrockError{message: e.into_string()}
+    }
+}
+impl From<bincode::Error> for RedrockError {
+    fn from(e: bincode::Error) -> RedrockError {
+        RedrockError{message: format!("{:?}", e)}
+    }
+}
+
+impl error::Error for RedrockError {
+    fn description(&self) -> &str {
+        &self.message
+    }
+}
+
+impl fmt::Display for RedrockError {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        self.message.fmt(formatter)
+    }
+}
+
+// impl fmt::Debug for Point {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         write!(f, "RedRockError: {}", self)
+//     }
+// }
 
 
 fn meta_key(tp: &str, key: &str) -> Vec<u8> {
@@ -45,21 +86,21 @@ fn z_key(key: &str) -> Vec<u8> {
     data_key("z", &format!("{}:", &key))
 }
 
-fn lmetaget(db: &rocksdb::DB, key: &str) -> ListMeta {
+fn lmetaget(db: &rocksdb::DB, key: &str) -> Result<ListMeta, RedrockError> {
     let meta_k = meta_key("l", &key);
     match db.get(&meta_k) {
-        Ok(Some(meta_b)) => deserialize(&meta_b).unwrap(),
-        _ => ListMeta{length: 0}
+        Ok(Some(meta_b)) => deserialize(&meta_b).map_err(|e| e.into()),
+        _ => Ok(ListMeta{length: 0})
     }
 }
 
-fn lmetaset(db: &rocksdb::DB, key: &str, m: &ListMeta) -> std::result::Result<(), rocksdb::Error> {
+fn lmetaset(db: &rocksdb::DB, key: &str, m: &ListMeta) -> std::result::Result<(), RedrockError> {
     let meta_k = meta_key("l", &key);
-    db.put(&meta_k, &serialize(&m).unwrap())
+    db.put(&meta_k, &serialize(&m)?).map_err(|e| e.into())
 }
 
-pub fn lpush(db: &rocksdb::DB, key: &str, value: &str) -> std::result::Result<(), rocksdb::Error> {
-    let mut meta = lmetaget(&db, key);
+pub fn lpush(db: &rocksdb::DB, key: &str, value: &str) -> std::result::Result<(), RedrockError> {
+    let mut meta = lmetaget(&db, key)?;
     set_str(&db, &l_idx_key(&key, meta.length), &value)
     .and_then(|_| {
         meta.length+=1;
@@ -67,18 +108,23 @@ pub fn lpush(db: &rocksdb::DB, key: &str, value: &str) -> std::result::Result<()
     })
 }
 
+pub fn llen(db: &rocksdb::DB, key: &str) -> std::result::Result<u64, RedrockError> {
+    let meta = lmetaget(&db, &key)?;
+    Ok(meta.length)
+}
+
 pub fn get_str(db: &rocksdb::DB, key: &[u8]) -> Option<String> {
     match db.get(key) {
-        Ok(Some(data_b)) => Some(deserialize(&data_b).unwrap()),
+        Ok(Some(data_b)) => deserialize(&data_b).ok(),
         _ => None
     }
 }
-pub fn set_str(db: &rocksdb::DB, key: &[u8], data: &str) -> std::result::Result<(), rocksdb::Error> {
-    db.put(&key, &serialize(&data).unwrap())
+pub fn set_str(db: &rocksdb::DB, key: &[u8], data: &str) -> std::result::Result<(), RedrockError> {
+    db.put(&key, &serialize(&data)?).map_err(|e| e.into())
 }
 
-pub fn del(db: &rocksdb::DB, key: &[u8]) -> std::result::Result<(), rocksdb::Error> {
-    db.delete(&key)
+pub fn del(db: &rocksdb::DB, key: &[u8]) -> std::result::Result<(), RedrockError> {
+    db.delete(&key).map_err(|e| e.into())
 }
 
 pub fn get_u64(db: &rocksdb::DB, key: &str) -> u64 {
@@ -101,54 +147,55 @@ pub fn get_i64(db: &rocksdb::DB, key: &str) -> Option<i64> {
     }
 }
 
-pub fn set_u64(db: &rocksdb::DB, key: &str, data: u64) -> std::result::Result<(), rocksdb::Error> {
+pub fn set_u64(db: &rocksdb::DB, key: &str, data: u64) -> std::result::Result<(), RedrockError> {
     let bytes: [u8; 8] = unsafe { transmute(data.to_be()) };
-    db.put(&key.as_bytes(), &bytes)
+    db.put(&key.as_bytes(), &bytes).map_err(|e| e.into())
 }
 
-pub fn set_i64(db: &rocksdb::DB, key: &str, data: i64) -> std::result::Result<(), rocksdb::Error> {
+pub fn set_i64(db: &rocksdb::DB, key: &str, data: i64) -> std::result::Result<(), RedrockError> {
     let bytes: [u8; 8] = unsafe { transmute(data.to_be()) };
-    db.put(&key.as_bytes(), &bytes)
+    db.put(&key.as_bytes(), &bytes).map_err(|e| e.into())
 }
 
-pub fn inc_u64(db: &rocksdb::DB, key: &str) -> std::result::Result<(), rocksdb::Error> {
+pub fn inc_u64(db: &rocksdb::DB, key: &str) -> std::result::Result<(), RedrockError> {
     set_u64(&db, &key, get_u64(&db, &key)+1)
 }
 
 pub fn lget(db: &rocksdb::DB, key: &str) -> Vec<String> {
-    let meta = lmetaget(&db, &key);
     let mut out: Vec<String> = vec![];
-    for i in 0 .. meta.length {
-        let s: String = get_str(&db, &l_idx_key(&key, i)).unwrap();
-        out.push(s);
-    };
+    if let Ok(meta) = lmetaget(&db, &key) {
+        for i in 0 .. meta.length {
+            get_str(&db, &l_idx_key(&key, i))
+            .map(|s| out.push(s));
+        };
+    }
     out
 }
 
-pub fn ldel(db: &rocksdb::DB, key: &str) -> std::result::Result<(), rocksdb::Error> {
-    let meta = lmetaget(&db, &key);
+pub fn ldel(db: &rocksdb::DB, key: &str) -> std::result::Result<(), RedrockError> {
+    let meta = lmetaget(&db, &key)?;
     let mut batch = WriteBatch::default();
     for i in 0 .. meta.length {
-        batch.delete(&l_idx_key(&key, i)).unwrap();
+        batch.delete(&l_idx_key(&key, i))?;
     };
-    batch.delete(&meta_key("l", &key)).unwrap();
-    db.write(batch)
+    batch.delete(&meta_key("l", &key))?;
+    db.write(batch).map_err(|e| e.into())
 }
 
-pub fn lexists(db: &rocksdb::DB, key: &str) -> std::result::Result<bool, rocksdb::Error> {
+pub fn lexists(db: &rocksdb::DB, key: &str) -> std::result::Result<bool, RedrockError> {
     match db.get(&meta_key("l", &key)) {
         Ok(Some(_)) => Ok(true),
         Ok(None) => Ok(false),
-        Err(e) => Err(e),
+        Err(e) => Err(e.into()),
     }
 }
 
-pub fn sadd(db: &rocksdb::DB, key: &str, member: &str) -> std::result::Result<(), rocksdb::Error> {
+pub fn sadd(db: &rocksdb::DB, key: &str, member: &str) -> std::result::Result<(), RedrockError> {
     set_str(&db, &z_member_key(&key, &member), &member)
 }
 
-pub fn srem(db: &rocksdb::DB, key: &str, member: &str) -> std::result::Result<(), rocksdb::Error> {
-    db.delete(&z_member_key(&key, &member))
+pub fn srem(db: &rocksdb::DB, key: &str, member: &str) -> std::result::Result<(), RedrockError> {
+    db.delete(&z_member_key(&key, &member)).map_err(|e| e.into())
 }
 
 pub fn prefix_search(db: &rocksdb::DB, prefix: &str) -> HashMap<String, i64> {
@@ -160,8 +207,8 @@ pub fn prefix_search(db: &rocksdb::DB, prefix: &str) -> HashMap<String, i64> {
             Ok(k) => {
                 if !k.starts_with(&prefix) { break; }
                 let mut b: &[u8] = &it_value;
-                let v = b.read_i64::<BigEndian>().unwrap();
-                out.insert(k.to_string(), v);
+                b.read_i64::<BigEndian>()
+                .map(|v| out.insert(k.to_string(), v)).expect("inserting to hashmap");
             },
             _ => { break; }
         }
@@ -172,15 +219,14 @@ pub fn prefix_search(db: &rocksdb::DB, prefix: &str) -> HashMap<String, i64> {
 
 pub fn smembers(db: &rocksdb::DB, key: &str) -> Vec<String> {
     let zk = z_key(&key);
-    let zk_str = str::from_utf8(&zk).unwrap();
+    let zk_str = str::from_utf8(&zk).expect("key to be valid utf8 string");
     let mut out: Vec<String> = vec![];
     let iter = db.iterator(IteratorMode::From(&zk, Direction::Forward)); // From a key in Direction::{forward,reverse}
     for (it_key, it_value) in iter {
         match str::from_utf8(&it_key) {
             Ok(k) => {
                 if !k.starts_with(&zk_str) { break; }
-                let s: String = deserialize(&it_value).unwrap();
-                out.push(s);
+                deserialize(&it_value).map(|s| out.push(s)).expect("inserting to vector");
             },
             _ => { break; }
         }
@@ -199,5 +245,5 @@ pub fn open_db(path: &str) -> rocksdb::DB {
     // opts.set_stats_dump_period_sec(120);
     // opts.set_prefix_extractor(transform);
     // opts.set_memtable_prefix_bloom_ratio(0.1);
-    DB::open(&opts, path).unwrap()
+    DB::open(&opts, path).expect("open database")
 }
