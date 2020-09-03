@@ -161,6 +161,10 @@ pub fn inc_u64(db: &rocksdb::DB, key: &str) -> std::result::Result<(), RedrockEr
     set_u64(&db, &key, get_u64(&db, &key).unwrap_or(0)+1)
 }
 
+pub fn inc_i64(db: &rocksdb::DB, key: &str) -> std::result::Result<(), RedrockError> {
+    set_i64(&db, &key, get_i64(&db, &key).unwrap_or(0)+1)
+}
+
 pub fn lget(db: &rocksdb::DB, key: &str) -> Vec<String> {
     let mut out: Vec<String> = vec![];
     if let Ok(meta) = lmetaget(&db, &key) {
