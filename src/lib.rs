@@ -127,13 +127,13 @@ pub fn del(db: &rocksdb::DB, key: &str) -> std::result::Result<(), RedrockError>
     db.delete(&key.as_bytes()).map_err(|e| e.into())
 }
 
-pub fn get_u64(db: &rocksdb::DB, key: &str) -> u64 {
+pub fn get_u64(db: &rocksdb::DB, key: &str) -> Option<u64> {
     match db.get(key.as_bytes()) {
         Ok(Some(data_b)) => {
             let mut b: &[u8] = &data_b;
-            b.read_u64::<BigEndian>().unwrap_or(0)
+            b.read_u64::<BigEndian>().ok()
         },
-        _ => 0
+        _ => None
     }
 }
 
@@ -158,7 +158,7 @@ pub fn set_i64(db: &rocksdb::DB, key: &str, data: i64) -> std::result::Result<()
 }
 
 pub fn inc_u64(db: &rocksdb::DB, key: &str) -> std::result::Result<(), RedrockError> {
-    set_u64(&db, &key, get_u64(&db, &key)+1)
+    set_u64(&db, &key, get_u64(&db, &key).unwrap_or(0)+1)
 }
 
 pub fn lget(db: &rocksdb::DB, key: &str) -> Vec<String> {
@@ -176,9 +176,9 @@ pub fn ldel(db: &rocksdb::DB, key: &str) -> std::result::Result<(), RedrockError
     let meta = lmetaget(&db, &key)?;
     let mut batch = WriteBatch::default();
     for i in 0 .. meta.length {
-        batch.delete(&l_idx_key(&key, i))?;
+        batch.delete(&l_idx_key(&key, i));
     };
-    batch.delete(&meta_key("l", &key))?;
+    batch.delete(&meta_key("l", &key));
     db.write(batch).map_err(|e| e.into())
 }
 
