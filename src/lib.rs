@@ -220,6 +220,22 @@ pub fn prefix_search(db: &rocksdb::DB, prefix: &str) -> HashMap<String, i64> {
     };
     out
 }
+pub fn prefix_search_str(db: &rocksdb::DB, prefix: &str) -> HashMap<String, String> {
+    let prefix_b = prefix.as_bytes();
+    let mut out: HashMap<String, String> = HashMap::new();
+    let iter = db.iterator(IteratorMode::From(&prefix_b, Direction::Forward));
+    for (it_key, it_value) in iter {
+        match str::from_utf8(&it_key) {
+            Ok(k) => {
+                if !k.starts_with(&prefix) { break; }
+                deserialize(&it_value).map(|s| out.insert(k.to_string(), s)).expect("inserting to hashmap");
+            },
+            _ => { break; }
+        }
+
+    };
+    out
+}
 
 pub fn smembers(db: &rocksdb::DB, key: &str) -> Vec<String> {
     let zk = z_key(&key);
