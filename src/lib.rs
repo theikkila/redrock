@@ -206,17 +206,20 @@ pub fn prefix_search(db: &rocksdb::DB, prefix: &str) -> HashMap<String, i64> {
     let prefix_b = prefix.as_bytes();
     let mut out: HashMap<String, i64> = HashMap::new();
     let iter = db.iterator(IteratorMode::From(&prefix_b, Direction::Forward)); // From a key in Direction::{forward,reverse}
-    for (it_key, it_value) in iter {
-        match str::from_utf8(&it_key) {
-            Ok(k) => {
-                if !k.starts_with(&prefix) { break; }
-                let mut b: &[u8] = &it_value;
-                b.read_i64::<BigEndian>()
-                .map(|v| out.insert(k.to_string(), v)).expect("inserting to hashmap");
-            },
-            _ => { break; }
+    for item in iter {
+        if let Ok(kv) = item {
+            let (it_key, it_value) = kv;
+            match str::from_utf8(&it_key) {
+                Ok(k) => {
+                    if !k.starts_with(&prefix) { break; }
+                    let mut b: &[u8] = &it_value;
+                    b.read_i64::<BigEndian>()
+                    .map(|v| out.insert(k.to_string(), v)).expect("inserting to hashmap");
+                },
+                _ => { break; }
+            }
         }
-
+        break;
     };
     out
 }
@@ -224,13 +227,17 @@ pub fn prefix_search_str(db: &rocksdb::DB, prefix: &str) -> HashMap<String, Stri
     let prefix_b = prefix.as_bytes();
     let mut out: HashMap<String, String> = HashMap::new();
     let iter = db.iterator(IteratorMode::From(&prefix_b, Direction::Forward));
-    for (it_key, it_value) in iter {
-        match str::from_utf8(&it_key) {
-            Ok(k) => {
-                if !k.starts_with(&prefix) { break; }
-                deserialize(&it_value).map(|s| out.insert(k.to_string(), s)).expect("inserting to hashmap");
-            },
-            _ => { break; }
+    for item in iter {
+        if let Ok(kv) = item {
+            let (it_key, it_value) = kv;
+
+            match str::from_utf8(&it_key) {
+                Ok(k) => {
+                    if !k.starts_with(&prefix) { break; }
+                    deserialize(&it_value).map(|s| out.insert(k.to_string(), s)).expect("inserting to hashmap");
+                },
+                _ => { break; }
+            }
         }
 
     };
@@ -241,13 +248,16 @@ pub fn smembers(db: &rocksdb::DB, key: &str) -> Vec<String> {
     let zk = z_key(&key);
     let mut out: Vec<String> = vec![];
     let iter = db.iterator(IteratorMode::From(&zk.as_bytes(), Direction::Forward)); // From a key in Direction::{forward,reverse}
-    for (it_key, it_value) in iter {
-        match str::from_utf8(&it_key) {
-            Ok(k) => {
-                if !k.starts_with(&zk) { break; }
-                deserialize(&it_value).map(|s| out.push(s)).expect("inserting to vector");
-            },
-            _ => { break; }
+    for item in iter {
+        if let Ok(kv) = item {
+            let (it_key, it_value) = kv;
+            match str::from_utf8(&it_key) {
+                Ok(k) => {
+                    if !k.starts_with(&zk) { break; }
+                    deserialize(&it_value).map(|s| out.push(s)).expect("inserting to vector");
+                },
+                _ => { break; }
+            }
         }
 
     };
