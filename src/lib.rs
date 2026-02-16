@@ -16,8 +16,6 @@ use byteorder::{BigEndian, ReadBytesExt}; // 1.2.7
 use std::error;
 use std::fmt;
 use std::str;
-use std::mem::transmute;
-
 
 use rocksdb::{DB, Options, Direction, IteratorMode, DBCompressionType, WriteBatch};
 
@@ -148,12 +146,12 @@ pub fn get_i64(db: &rocksdb::DB, key: &str) -> Option<i64> {
 }
 
 pub fn set_u64(db: &rocksdb::DB, key: &str, data: u64) -> std::result::Result<(), RedrockError> {
-    let bytes: [u8; 8] = unsafe { transmute(data.to_be()) };
+    let bytes: [u8; 8] = data.to_be_bytes();
     db.put(&key.as_bytes(), &bytes).map_err(|e| e.into())
 }
 
 pub fn set_i64(db: &rocksdb::DB, key: &str, data: i64) -> std::result::Result<(), RedrockError> {
-    let bytes: [u8; 8] = unsafe { transmute(data.to_be()) };
+    let bytes: [u8; 8] = data.to_be_bytes();
     db.put(&key.as_bytes(), &bytes).map_err(|e| e.into())
 }
 
@@ -219,7 +217,6 @@ pub fn prefix_search(db: &rocksdb::DB, prefix: &str) -> HashMap<String, i64> {
                 _ => { break; }
             }
         }
-        break;
     };
     out
 }
@@ -239,7 +236,6 @@ pub fn prefix_search_str(db: &rocksdb::DB, prefix: &str) -> HashMap<String, Stri
                 _ => { break; }
             }
         }
-
     };
     out
 }
@@ -259,7 +255,6 @@ pub fn smembers(db: &rocksdb::DB, key: &str) -> Vec<String> {
                 _ => { break; }
             }
         }
-
     };
     out
 }
